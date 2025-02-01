@@ -5,8 +5,9 @@
 (define-constant err-owner-only (err u100))
 (define-constant err-not-found (err u101))
 (define-constant err-unauthorized (err u102))
+(define-constant err-already-shared (err u103))
 
-;; Data Variables
+;; Data Variables 
 (define-data-var total-users uint u0)
 
 ;; Data Maps
@@ -29,6 +30,7 @@
       price: uint,
       purchased: bool
     }),
+    shared-with: (list 10 principal),
     created-at: uint
   }
 )
@@ -85,6 +87,7 @@
       name: name,
       store: store,
       items: (list),
+      shared-with: (list),
       created-at: block-height
     }))
     (begin
@@ -93,6 +96,44 @@
     )
   )
 )
+
+(define-public (share-shopping-list (list-id uint) (user principal))
+  (let 
+    ((current-list (unwrap! (map-get? ShoppingLists list-id) err-not-found)))
+    (if (and
+          (is-eq (get owner current-list) tx-sender)
+          (not (is-some (index-of? (get shared-with current-list) user))))
+      (ok (map-set ShoppingLists list-id
+        (merge current-list 
+          {shared-with: (unwrap! (as-max-len? 
+            (append (get shared-with current-list) user) u10) 
+            err-unauthorized)})))
+      err-unauthorized
+    )
+  )
+)
+
+(define-public (unshare-shopping-list (list-id uint) (user principal))
+  (let
+    ((current-list (unwrap! (map-get? ShoppingLists list-id) err-not-found)))
+    (if (is-eq (get owner current-list) tx-sender)
+      (ok (map-set ShoppingLists list-id
+        (merge current-list
+          {shared-with: (filter not-user (get shared-with current-list))})))
+      err-unauthorized
+    )
+  )
+)
+
+(define-private (not-user (p principal))
+  (not (is-eq p tx-sender)))
+
+(define-read-only (can-access-list (list-id uint) (user principal))
+  (let
+    ((list (unwrap! (map-get? ShoppingLists list-id) err-not-found)))
+    (ok (or
+      (is-eq (get owner list) user)
+      (is-some (index-of? (get shared-with list) user))))))
 
 (define-public (add-shipping-address 
     (label (string-ascii 20))
