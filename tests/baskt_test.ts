@@ -33,9 +33,10 @@ Clarinet.test({
 });
 
 Clarinet.test({
-  name: "Can create shopping list and add items",
+  name: "Can create shopping list and share with other users",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const wallet1 = accounts.get('wallet_1')!;
+    const wallet2 = accounts.get('wallet_2')!;
     
     let block = chain.mineBlock([
       Tx.contractCall('baskt', 'create-shopping-list', [
@@ -46,14 +47,25 @@ Clarinet.test({
     
     const listId = block.receipts[0].result.expectOk();
     
-    // Verify list was created
-    let listBlock = chain.mineBlock([
-      Tx.contractCall('baskt', 'get-shopping-list', [
-        listId
+    // Share list with wallet2
+    let shareBlock = chain.mineBlock([
+      Tx.contractCall('baskt', 'share-shopping-list', [
+        listId,
+        types.principal(wallet2.address)
       ], wallet1.address)
     ]);
     
-    listBlock.receipts[0].result.expectOk().expectSome();
+    assertEquals(shareBlock.receipts[0].result.expectOk(), true);
+    
+    // Verify wallet2 can access the list
+    let accessBlock = chain.mineBlock([
+      Tx.contractCall('baskt', 'can-access-list', [
+        listId,
+        types.principal(wallet2.address)
+      ], wallet2.address)
+    ]);
+    
+    assertEquals(accessBlock.receipts[0].result.expectOk(), true);
   },
 });
 
@@ -67,7 +79,7 @@ Clarinet.test({
         types.ascii("Home"),
         types.ascii("123 Main St"),
         types.ascii("New York"),
-        types.ascii("NY"),
+        types.ascii("NY"), 
         types.ascii("10001"),
         types.ascii("USA")
       ], wallet1.address)
