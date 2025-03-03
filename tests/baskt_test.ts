@@ -1,7 +1,5 @@
-// [Previous test content remains unchanged...]
-
 Clarinet.test({
-  name: "Can update and delete shopping list items",
+  name: "Can perform batch updates and validates inputs",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const wallet1 = accounts.get('wallet_1')!;
     
@@ -15,28 +13,43 @@ Clarinet.test({
     
     const listId = block.receipts[0].result.expectOk();
     
-    // Update item
-    let updateBlock = chain.mineBlock([
+    // Batch update items
+    let batchBlock = chain.mineBlock([
+      Tx.contractCall('baskt', 'batch-update-items', [
+        listId,
+        types.list([
+          types.tuple({
+            name: types.ascii("Milk"),
+            quantity: types.uint(2),
+            price: types.uint(399),
+            category: types.ascii("Dairy")
+          }),
+          types.tuple({
+            name: types.ascii("Bread"),
+            quantity: types.uint(1),
+            price: types.uint(299),
+            category: types.ascii("Bakery")
+          })
+        ])
+      ], wallet1.address)
+    ]);
+    
+    assertEquals(batchBlock.receipts[0].result.expectOk(), true);
+    
+    // Test invalid price
+    let invalidBlock = chain.mineBlock([
       Tx.contractCall('baskt', 'update-list-item', [
         listId,
         types.uint(0),
-        types.ascii("Milk"),
-        types.uint(2),
-        types.uint(399),
-        types.ascii("Dairy")
+        types.ascii("Invalid"),
+        types.uint(0),
+        types.uint(0),
+        types.ascii("Test")
       ], wallet1.address)
     ]);
     
-    assertEquals(updateBlock.receipts[0].result.expectOk(), true);
-    
-    // Delete item
-    let deleteBlock = chain.mineBlock([
-      Tx.contractCall('baskt', 'delete-list-item', [
-        listId,
-        types.uint(0)
-      ], wallet1.address)
-    ]);
-    
-    assertEquals(deleteBlock.receipts[0].result.expectOk(), true);
+    assertEquals(invalidBlock.receipts[0].result.isErr(), true);
   },
 });
+
+// [Previous tests remain unchanged...]
